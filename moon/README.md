@@ -14,6 +14,8 @@ A simple web application to view Chandrayaan-2 OHRC moon images from any Microso
 
 ## Usage
 
+![1767884651780](image/README/1767884651780.gif)
+
 ### Running Locally
 
 1. Simply open `index.html` in a web browser
