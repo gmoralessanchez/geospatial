@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chandrayaan-2 OHRC Moon Images Viewer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-imageoverlay-rotated@0.2.1/Leaflet.ImageOverlay.Rotated.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+            padding: 15px 20px;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        header h1 {
+            font-size: 1.4rem;
+            color: #e0e0e0;
+        }
+
+        header h1 span {
+            color: #4fc3f7;
+        }
+
+        .auth-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .auth-section input {
+            padding: 8px 12px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #2a2a4a;
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        .auth-section input#geocatalogUrl {
+            width: 380px;
+        }
+
+        .auth-section input#collectionId {
+            width: 200px;
+        }
+
+        .auth-section input#tokenInput {
+            width: 250px;
+        }
+
+        .auth-section input::placeholder {
+            color: #888;
+        }
+
+        .auth-section button {
+            padding: 8px 16px;
+            background: #4fc3f7;
+            border: none;
+            border-radius: 4px;
+            color: #1a1a2e;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .auth-section button:hover {
+            background: #81d4fa;
+        }
+
+        .auth-section button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #map {
+            flex: 1;
+            background: #0d0d1a;
+        }
+
+        .sidebar {
+            width: 350px;
+            background: #16213e;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 15px;
+            background: #1a1a2e;
+            border-bottom: 1px solid #333;
+        }
+
+        .sidebar-header h2 {
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+
+        .sidebar-header p {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .items-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .item-card {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+
+        .item-card:hover {
+            border-color: #4fc3f7;
+            transform: translateX(-2px);
+        }
+
+        .item-card.selected {
+            border-color: #4fc3f7;
+            box-shadow: 0 0 10px rgba(79, 195, 247, 0.3);
+        }
+
+        .item-thumbnail {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            background: #0d0d1a;
+        }
+
+        .item-thumbnail-container {
+            width: 100%;
+            height: 120px;
+            background: #0d0d1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .thumbnail-placeholder {
+            color: #666;
+            font-size: 0.75rem;
+        }
+
+        .item-info {
+            padding: 10px;
+        }
+
+        .item-info h3 {
+            font-size: 0.75rem;
+            color: #4fc3f7;
+            margin-bottom: 5px;
+            word-break: break-all;
+        }
+
+        .item-info p {
+            font-size: 0.7rem;
+            color: #888;
+            margin: 2px 0;
+        }
+
+        .status-bar {
+            padding: 10px 15px;
+            background: #0d0d1a;
+            border-top: 1px solid #333;
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .loading::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 2px solid #4fc3f7;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #ff5252;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin: 10px;
+            font-size: 0.85rem;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: #1a1a2e;
+            color: #eee;
+            border-radius: 8px;
+        }
+
+        .leaflet-popup-tip {
+            background: #1a1a2e;
+        }
+
+        .popup-content {
+            min-width: 200px;
+        }
+
+        .popup-content h3 {
+            color: #4fc3f7;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+
+        .popup-content p {
+            font-size: 0.8rem;
+            color: #aaa;
+            margin: 4px 0;
+        }
+
+        .popup-content img {
+            width: 100%;
+            margin-top: 8px;
+            border-radius: 4px;
+        }
+
+        .popup-content a {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 6px 12px;
+            background: #4fc3f7;
+            color: #1a1a2e;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        /* Leaflet customization for moon */
+        .leaflet-container {
+            background: #0d0d1a;
+        }
+
+        .no-token-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+
+        .no-token-message p {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>🌙 <span>MPCPro - Chandrayaan-2 OHRC</span> Moon Images Viewer</h1>
+            <div class="auth-section">
+                <input type="text" id="geocatalogUrl" placeholder="GeoCatalog URL..." value="" />
+                <input type="text" id="collectionId" placeholder="Collection ID..." value="" />
+                <input type="password" id="tokenInput" placeholder="Bearer Token..." />
+                <button id="connectBtn" onclick="connect()">Connect</button>
+            </div>
+        </header>
+        <div class="main-container">
+            <div id="map"></div>
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <h2>📷 Image Items</h2>
+                    <p>Click on an item to view on map</p>
+                </div>
+                <div class="items-list" id="itemsList">
+                    <div class="no-token-message">
+                        <p>🔐 Enter your bearer token and click Connect to load images</p>
+                        <p style="font-size: 0.75rem;">Data from Microsoft Planetary Computer Pro GeoCatalog</p>
+                    </div>
+                </div>
+                <div class="status-bar" id="statusBar">
+                    Ready - Enter token to connect
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            itemsPerPage: 50
+        };
+
+        // State
+        let geocatalogBaseUrl = '';
+        let collectionId = '';
+        let bearerToken = '';
+        let sasToken = '';
+        let map = null;
+        let itemsLayer = null;
+        let items = [];
+        let selectedItemId = null;
+        let thumbnailCache = {}; // Cache for authenticated thumbnail data URLs
+        let imageOverlays = {}; // Cache for image overlays on map
+
+        // Initialize map
+        function initMap() {
+            // Create map for Moon visualization
+            // Using standard Web Mercator CRS since OpenPlanetary tiles use this projection
+            map = L.map('map', {
+                center: [0, 0],
+                zoom: 2,
+                minZoom: 1,
+                maxZoom: 18
+            });
+
+            // Add a moon base layer using USGS Moon tiles via OpenPlanetary
+            const moonLayer = L.tileLayer('https://cartocdn-gusc.global.ssl.fastly.net/opmbuilder/api/v1/map/named/opm-moon-basemap-v0-1/all/{z}/{x}/{y}.png', {
+                attribution: '© OpenPlanetary | USGS',
+                maxZoom: 10,
+                tms: false,
+                noWrap: true
+            });
+
+            // Add moon layer to map
+            moonLayer.addTo(map);
+
+            // Create a feature group for STAC items (supports getBounds)
+            itemsLayer = L.featureGroup().addTo(map);
+
+            // Add scale control
+            L.control.scale({
+                metric: true,
+                imperial: false,
+                position: 'bottomleft'
+            }).addTo(map);
+
+            // Add coordinates display on mouse move
+            map.on('mousemove', function(e) {
+                const lat = e.latlng.lat.toFixed(4);
+                const lng = e.latlng.lng.toFixed(4);
+                document.getElementById('statusBar').textContent = 
+                    `Coordinates: ${lat}°, ${lng}° | Items loaded: ${items.length}`;
+            });
+        }
+
+        // Connect to GeoCatalog
+        async function connect() {
+            const geocatalogUrlInput = document.getElementById('geocatalogUrl');
+            const collectionIdInput = document.getElementById('collectionId');
+            const tokenInput = document.getElementById('tokenInput');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            geocatalogBaseUrl = geocatalogUrlInput.value.trim().replace(/\/$/, ''); // Remove trailing slash
+            collectionId = collectionIdInput.value.trim();
+            bearerToken = tokenInput.value.trim();
+            
+            if (!geocatalogBaseUrl) {
+                alert('Please enter a GeoCatalog URL');
+                return;
+            }
+            
+            if (!collectionId) {
+                alert('Please enter a Collection ID');
+                return;
+            }
+            
+            if (!bearerToken) {
+                alert('Please enter a bearer token');
+                return;
+            }
+
+            connectBtn.disabled = true;
+            connectBtn.textContent = 'Connecting...';
+            updateStatus('Connecting to GeoCatalog...');
+
+            try {
+                // First, get the SAS token for accessing assets
+                await getSasToken();
+                updateStatus('SAS token obtained, loading items...');
+                
+                await loadItems();
+                connectBtn.textContent = 'Connected ✓';
+                // Hide inputs after successful connection
+                geocatalogUrlInput.style.display = 'none';
+                collectionIdInput.style.display = 'none';
+                tokenInput.style.display = 'none';
+            } catch (error) {
+                console.error('Connection failed:', error);
+                connectBtn.disabled = false;
+                connectBtn.textContent = 'Connect';
+                showError(`Connection failed: ${error.message}`);
+            }
+        }
+
+        // Load items from STAC API
+        async function loadItems() {
+            const itemsListEl = document.getElementById('itemsList');
+            itemsListEl.innerHTML = '<div class="loading">Loading items...</div>';
+
+            const url = `${geocatalogBaseUrl}/stac/collections/${collectionId}/items?limit=${CONFIG.itemsPerPage}`;
+            
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${bearerToken}`,
+                    'Accept': 'application/geo+json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            items = data.features || [];
+            
+            updateStatus(`Loaded ${items.length} items`);
+            renderItems();
+            displayItemsOnMap();
+        }
+
+        // Get SAS token for accessing collection assets
+        async function getSasToken() {
+            const url = `${geocatalogBaseUrl}/sas/token/${collectionId}?api-version=2025-04-30-preview`;
+            
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${bearerToken}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to get SAS token: HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            sasToken = data.token;
+            console.log('SAS token obtained successfully:', sasToken.substring(0, 50) + '...');
+        }
+
+        // Get asset URL with SAS token appended
+        function getAssetUrlWithSas(assetUrl) {
+            if (!assetUrl || !sasToken) {
+                console.warn('Missing URL or SAS token:', { assetUrl, hasSasToken: !!sasToken });
+                return assetUrl;
+            }
+            const separator = assetUrl.includes('?') ? '&' : '?';
+            const fullUrl = `${assetUrl}${separator}${sasToken}`;
+            console.log('Asset URL with SAS:', fullUrl.substring(0, 100) + '...');
+            return fullUrl;
+        }
+
+        // Render items in sidebar
+        function renderItems() {
+            const itemsListEl = document.getElementById('itemsList');
+            
+            if (items.length === 0) {
+                itemsListEl.innerHTML = '<div class="no-token-message"><p>No items found in this collection</p></div>';
+                return;
+            }
+
+            itemsListEl.innerHTML = items.map(item => {
+                const props = item.properties || {};
+                const datetime = props.datetime ? new Date(props.datetime).toLocaleDateString() : 'Unknown';
+                const thumbnailUrl = item.assets?.thumbnail?.href || '';
+                
+                return `
+                    <div class="item-card ${selectedItemId === item.id ? 'selected' : ''}" 
+                         onclick="selectItem('${item.id}')" 
+                         data-item-id="${item.id}">
+                        <div class="item-thumbnail-container" data-thumbnail-url="${thumbnailUrl}" data-item-id="${item.id}">
+                            <div class="thumbnail-placeholder">Loading...</div>
+                        </div>
+                        <div class="item-info">
+                            <h3>${item.id}</h3>
+                            <p>📅 ${datetime}</p>
+                            <p>🎯 Target: ${props.target || 'Moon'}</p>
+                            ${props['raster:spatial_resolution'] ? 
+                                `<p>📐 Resolution: ${props['raster:spatial_resolution']}m</p>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Load thumbnails with authentication
+            loadThumbnails();
+        }
+
+        // Load thumbnails with SAS token
+        async function loadThumbnails() {
+            const containers = document.querySelectorAll('.item-thumbnail-container[data-thumbnail-url]');
+            
+            for (const container of containers) {
+                const url = container.dataset.thumbnailUrl;
+                const itemId = container.dataset.itemId;
+                
+                if (!url) {
+                    container.innerHTML = '<div class="thumbnail-placeholder">No thumbnail</div>';
+                    continue;
+                }
+
+                // Use direct image loading with SAS token in URL
+                const urlWithSas = getAssetUrlWithSas(url);
+                thumbnailCache[itemId] = urlWithSas;
+                
+                // Create image element and handle load/error events
+                const img = document.createElement('img');
+                img.className = 'item-thumbnail';
+                img.alt = 'Thumbnail';
+                
+                img.onload = () => {
+                    container.innerHTML = '';
+                    container.appendChild(img);
+                };
+                
+                img.onerror = (e) => {
+                    console.error('Failed to load thumbnail for', itemId, '- URL:', urlWithSas.substring(0, 100));
+                    container.innerHTML = '<div class="thumbnail-placeholder">Failed to load</div>';
+                };
+                
+                img.src = urlWithSas;
+            }
+        }
+
+        // Fetch image with SAS token and convert to data URL (used for popups)
+        async function fetchImageAsDataUrl(url) {
+            try {
+                // Append SAS token to the URL
+                const urlWithSas = getAssetUrlWithSas(url);
+                console.log('Fetching image:', urlWithSas.substring(0, 100) + '...');
+                
+                const response = await fetch(urlWithSas);
+                console.log('Fetch response:', response.status, response.statusText);
+
+                if (!response.ok) {
+                    console.error('Fetch failed:', response.status, response.statusText);
+                    return null;
+                }
+
+                const blob = await response.blob();
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            } catch (error) {
+                console.error('Error fetching image:', error);
+                return null;
+            }
+        }
+
+        // Display items on map
+        function displayItemsOnMap() {
+            itemsLayer.clearLayers();
+
+            items.forEach(item => {
+                if (!item.geometry) return;
+
+                // Create polygon for item footprint
+                const geoJsonLayer = L.geoJSON(item.geometry, {
+                    style: {
+                        color: '#4fc3f7',
+                        weight: 2,
+                        opacity: 0.8,
+                        fillColor: '#4fc3f7',
+                        fillOpacity: 0.2
+                    }
+                });
+
+                // Add popup with item details
+                const props = item.properties || {};
+                const thumbnailUrl = item.assets?.thumbnail?.href || '';
+                const datetime = props.datetime ? new Date(props.datetime).toLocaleString() : 'Unknown';
+                
+                // Create popup content without thumbnail (thumbnail shown as map overlay)
+                const popupContent = `
+                    <div class="popup-content">
+                        <h3>${item.id}</h3>
+                        <p>📅 Date: ${datetime}</p>
+                        <p>🎯 Target: ${props.target || 'Moon'}</p>
+                        ${props['raster:spatial_resolution'] ? 
+                            `<p>📐 Resolution: ${props['raster:spatial_resolution']}m</p>` : ''}
+                        ${item.links?.find(l => l.rel === 'self')?.href ? 
+                            `<a href="${item.links.find(l => l.rel === 'self').href}" target="_blank">View STAC Item</a>` : ''}
+                    </div>
+                `;
+
+                geoJsonLayer.bindPopup(popupContent, {
+                    maxWidth: 300
+                });
+
+                // Highlight on hover
+                geoJsonLayer.on('mouseover', function() {
+                    this.setStyle({
+                        weight: 3,
+                        fillOpacity: 0.4
+                    });
+                });
+
+                geoJsonLayer.on('mouseout', function() {
+                    if (selectedItemId !== item.id) {
+                        this.setStyle({
+                            weight: 2,
+                            fillOpacity: 0.2
+                        });
+                    }
+                });
+
+                geoJsonLayer.on('click', function() {
+                    selectItem(item.id);
+                });
+
+                geoJsonLayer.itemId = item.id;
+                itemsLayer.addLayer(geoJsonLayer);
+            });
+
+            // Fit map to show all items if we have any
+            if (items.length > 0) {
+                const bounds = itemsLayer.getBounds();
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
+            }
+        }
+
+        // Select an item
+        function selectItem(itemId) {
+            selectedItemId = itemId;
+            
+            // Update sidebar selection
+            document.querySelectorAll('.item-card').forEach(card => {
+                card.classList.toggle('selected', card.dataset.itemId === itemId);
+            });
+
+            // Remove any existing image overlay
+            Object.values(imageOverlays).forEach(overlay => {
+                if (map.hasLayer(overlay)) {
+                    map.removeLayer(overlay);
+                }
+            });
+
+            // Find the selected item data
+            const selectedItem = items.find(item => item.id === itemId);
+
+            // Find and highlight the item on map
+            itemsLayer.eachLayer(layer => {
+                if (layer.itemId === itemId) {
+                    layer.setStyle({
+                        color: '#ffeb3b',
+                        weight: 3,
+                        fillColor: 'transparent',
+                        fillOpacity: 0
+                    });
+                    layer.openPopup();
+                    
+                    // Zoom to item
+                    const bounds = layer.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds, { padding: [100, 100] });
+                        
+                        // Add image overlay for the selected item
+                        if (selectedItem) {
+                            addImageOverlay(selectedItem, bounds);
+                        }
+                    }
+                } else {
+                    layer.setStyle({
+                        color: '#4fc3f7',
+                        weight: 2,
+                        fillColor: '#4fc3f7',
+                        fillOpacity: 0.2
+                    });
+                }
+            });
+
+            // Scroll sidebar to selected item
+            const selectedCard = document.querySelector(`.item-card[data-item-id="${itemId}"]`);
+            if (selectedCard) {
+                selectedCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        // Add image overlay on the map for an item
+        function addImageOverlay(item, bounds) {
+            const thumbnailUrl = item.assets?.thumbnail?.href;
+            if (!thumbnailUrl) return;
+
+            const imgUrl = thumbnailCache[item.id] || getAssetUrlWithSas(thumbnailUrl);
+            
+            // Get corner coordinates from the item's geometry
+            if (item.geometry && item.geometry.coordinates && item.geometry.coordinates[0]) {
+                const coords = item.geometry.coordinates[0];
+                
+                if (coords.length >= 4) {
+                    // Calculate bounding box from geometry
+                    let minLat = Infinity, maxLat = -Infinity;
+                    let minLng = Infinity, maxLng = -Infinity;
+                    
+                    coords.slice(0, 4).forEach(c => {
+                        minLng = Math.min(minLng, c[0]);
+                        maxLng = Math.max(maxLng, c[0]);
+                        minLat = Math.min(minLat, c[1]);
+                        maxLat = Math.max(maxLat, c[1]);
+                    });
+                    
+                    // Use standard image overlay with bounds
+                    // This will stretch the image to fit the bounding box
+                    // The thumbnail is already a visual representation, so this gives better results
+                    const overlayBounds = [[minLat, minLng], [maxLat, maxLng]];
+                    
+                    console.log('Image overlay bounds:', overlayBounds);
+                    
+                    const imageOverlay = L.imageOverlay(imgUrl, overlayBounds, {
+                        opacity: 0.9,
+                        interactive: false
+                    });
+
+                    imageOverlay.addTo(map);
+                    imageOverlays[item.id] = imageOverlay;
+                    
+                    return;
+                }
+            }
+            
+            // Fallback
+            console.warn('Using fallback bounds for image overlay');
+        }
+
+        // Update status bar
+        function updateStatus(message) {
+            document.getElementById('statusBar').textContent = message;
+        }
+
+        // Show error message
+        function showError(message) {
+            const itemsListEl = document.getElementById('itemsList');
+            itemsListEl.innerHTML = `<div class="error-message">${message}</div>`;
+            updateStatus('Error occurred');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            
+            // Allow pressing Enter to connect
+            document.getElementById('tokenInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    connect();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
